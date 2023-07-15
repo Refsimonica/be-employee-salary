@@ -14,6 +14,7 @@ use App\Models\Setting;
 use DB;
 use File;
 use Illuminate\Validation\Rule;
+use Carbon;
 
 class AbsensiKaryawanController extends Controller {
 
@@ -51,7 +52,8 @@ class AbsensiKaryawanController extends Controller {
             $imports = Excel::toArray(new AbsensiImport, request()->file('file'));
             $data_absensi = $imports[0] ?? $imports;
             $label_absensi = $data_absensi[0];
-
+            $time = Carbon\Carbon::now();
+            $now = $time->toDateTimeString();
             $response = [];
             foreach ($data_absensi as $absensi) {
                 $response [$absensi[2]][] = $absensi;
@@ -66,8 +68,8 @@ class AbsensiKaryawanController extends Controller {
                 $file = request()->file('file')->store('files/salary', 'public');
 
                 $absensi = TAbsensi::create([
-                    'start_date' => $request->start_date,
-                    'end_date' => $request->end_date,
+                    'start_date' => $now,
+                    'end_date' => $now,
                     'file' => $file,
                     'status' => false,
                 ]);
@@ -357,7 +359,7 @@ class AbsensiKaryawanController extends Controller {
     }
 
     public function updateAbsentDetail(Request $request) {
-
+        // return $request;
         try {
             $umk_salary = Setting::where('name', 'salary')->first();
             $umk_salary = json_decode($umk_salary->value);
@@ -366,22 +368,22 @@ class AbsensiKaryawanController extends Controller {
             $data = TAbsensiKaryawan::findOrFail($request->id);
             $absent_detail = json_decode($data->absent_detail);
 
-            switch ($request->status) {
-                case 'attend':
-                    // if (condition) {
-                    //     # code...
-                    // }
+            if ($request->status == 'attend' || $request->status == 'sick') {
+                if ($request->current_status == 'absent' || $request->current_status == 'permit') {
                     $absent_cut = $data->absent_cut - $umk_salary->daily;
                     $absent = $data->absent - 1;
-                break;
-                case 'sick':
-                    $absent_cut = $data->absent_cut - $umk_salary->daily;
-                    $absent = $data->absent - 1;
-                break;
-                default:
+                } else {
+                    $absent_cut = $data->absent_cut;
+                    $absent = $data->absent;
+                }
+            } else {
+                if ($request->current_status == 'attend' || $request->current_status == 'sick') {
                     $absent_cut = $data->absent_cut + $umk_salary->daily;
                     $absent = $data->absent + 1;
-                break;
+                } else {
+                    $absent_cut = $data->absent_cut;
+                    $absent = $data->absent;
+                }
             }
 
             $data->update([
